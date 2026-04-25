@@ -41,8 +41,6 @@ def parse_args():
     # Override model config when metrics.json is not available
     parser.add_argument("--model", type=str, default=None,
                         help="timm model name (auto-detected from metrics.json if available)")
-    parser.add_argument("--num-classes", type=int, default=None,
-                        help="Number of classes (auto-detected from metrics.json if available)")
     return parser.parse_args()
 
 
@@ -78,32 +76,32 @@ def main():
         config, metadata = metrics_cfg
 
     model_name = args.model or (config and config.get("model"))
-    num_classes = args.num_classes or (metadata and metadata.get("num_classes"))
     image_size = args.image_size or (config and config.get("image_size")) or 224
 
     if model_name is None:
         print("Error: could not determine model name. "
               "Provide --model or ensure metrics.json is next to the checkpoint.")
         sys.exit(1)
-    if num_classes is None:
-        print("Error: could not determine num_classes. "
-              "Provide --num-classes or ensure metrics.json is next to the checkpoint.")
-        sys.exit(1)
 
     # ── Load model ───────────────────────────────────────────────────────────
-    print(f"\n{'='*60}")
-    print(f"  Model Evaluation")
-    print(f"{'='*60}")
-    print(f"  Model       : {model_name}")
-    print(f"  Num classes  : {num_classes}")
-    print(f"  Image size   : {image_size}")
-    print(f"  Checkpoint   : {checkpoint_path}")
-    print(f"  Device       : {device}")
-    print(f"{'='*60}\n")
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    state_dict = checkpoint["model_state_dict"]
+
+    # Infer num_classes from the classifier layer in the state dict
+    # timm models use 'fc.weight', 'classifier.weight', 'head.weight', or 'head.fc.weight'
+    num_classes = None
+    for key in ("fc.weight", "classifier.weight", "head.weight", "head.fc.weight"):
+        if key in state_dict:
+            num_classes = state_dict[key].shape[0]
+            break
+    if num_classes is None:
+        print("Error: could not infer num_classes from checkpoint.")
+        sys.exit(1)
+
+    print(f"\nConfig: {vars(args)}\n")
 
     model = build_model(model_name, num_classes=num_classes, pretrained=False)
-    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    model.load_state_dict(checkpoint["model_state_dict"])
+    model.load_state_dict(state_dict)
     model = model.to(device)
     model.eval()
 
@@ -112,9 +110,6 @@ def main():
     test_dataset = ImageFolder(root=args.test_dir, transform=transform)
     class_names = test_dataset.classes
     n_classes = len(class_names)
-
-    if n_classes != num_classes:
-        print(f"Warning: test set has {n_classes} classes but model expects {num_classes}")
 
     test_loader = DataLoader(
         test_dataset,

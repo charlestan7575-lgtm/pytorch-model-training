@@ -164,15 +164,7 @@ def main():
     set_seed(args.seed)
     device = resolve_device(args.device)
 
-    print(f"\n{'='*60}")
-    print(f"  PyTorch Image Classification Training")
-    print(f"{'='*60}")
-    print(f"  Model      : {args.model} (pretrained={args.pretrained})")
-    print(f"  Device     : {device}")
-    print(f"  Optimizer  : {args.optimizer}  lr={args.lr}  wd={args.weight_decay}")
-    print(f"  Scheduler  : {args.scheduler}  warmup={args.warmup_epochs} epochs")
-    print(f"  Augment    : {args.augmentation}")
-    print(f"{'='*60}\n")
+    print(f"\nConfig: {vars(args)}\n")
 
     # ── Data ──────────────────────────────────────────────────────────────────
     print("Loading dataset...")
