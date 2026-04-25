@@ -23,7 +23,7 @@ A clean, standard-level training script for image classification. All hyperparam
 pip install -r requirements.txt
 ```
 
-Requirements: `torch>=2.0`, `torchvision>=0.15`, `timm>=0.9`
+Requirements: `torch>=2.0`, `torchvision>=0.15`, `timm>=0.9`, `scikit-learn>=1.3`
 
 ---
 
@@ -169,11 +169,13 @@ train.py        Entry point — parse args, wire components, print summary
   ├── model.py    timm model factory, backbone freezing
   ├── engine.py   Training loop, validation loop, EarlyStopping
   └── utils.py    JsonLogger, save_checkpoint, helpers
+test.py         Evaluate a trained checkpoint on a test set
 ```
 
 | File | Key components |
 |------|----------------|
 | `train.py` | `main()`, `build_optimizer()`, `build_scheduler()` |
+| `test.py` | `main()`, `load_config_from_metrics()` |
 | `model.py` | `build_model()`, `count_parameters()` |
 | `dataset.py` | `get_dataloaders()`, `get_train_transforms()`, `get_val_transforms()` |
 | `engine.py` | `train()`, `train_one_epoch()`, `validate()`, `EarlyStopping` |
@@ -233,7 +235,41 @@ python train.py \
   --experiment-name resnet18_scratch
 ```
 
-### Loading a checkpoint
+### Evaluate on a test set
+
+```bash
+# Auto-detects model name, num_classes, and image_size from metrics.json
+python test.py \
+  --checkpoint runs/my_experiment/best_model.pth \
+  --test-dir data/test
+
+# Manual override if metrics.json is not available
+python test.py \
+  --checkpoint runs/my_experiment/best_model.pth \
+  --test-dir data/test \
+  --model resnet50 \
+  --num-classes 5
+```
+
+Output includes:
+- **Overall metrics** — accuracy, F1, precision, recall, AUROC, AUPRC
+- **Prediction distribution** — per-class predicted count vs actual count
+- **Correct predictions per class** — correct predictions / total predictions per class
+
+#### test.py CLI Reference
+
+| Argument | Default | Description |
+|---|---|---|
+| `--checkpoint` | *(required)* | Path to `best_model.pth` checkpoint |
+| `--test-dir` | *(required)* | Path to test ImageFolder root |
+| `--model` | *(auto)* | timm model name (auto-detected from metrics.json) |
+| `--num-classes` | *(auto)* | Number of classes (auto-detected from metrics.json) |
+| `--image-size` | *(auto/224)* | Input image size (auto-detected from metrics.json, else 224) |
+| `--batch-size` | `32` | Batch size for inference |
+| `--num-workers` | `4` | DataLoader worker processes |
+| `--device` | `auto` | `auto`, `cpu`, `cuda`, or `cuda:N` |
+
+### Loading a checkpoint manually
 
 ```python
 import torch
