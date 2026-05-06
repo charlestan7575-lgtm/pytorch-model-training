@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import Optional
 
 import torch
-from torch.utils.data import DataLoader, Subset
+import numpy as np
+from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
@@ -108,15 +109,23 @@ def get_dataloaders(
     # Detect class info from the underlying ImageFolder
     if isinstance(train_dataset, Subset):
         base = train_dataset.dataset
+        targets = [base.targets[i] for i in train_dataset.indices]
     else:
         base = train_dataset
+        targets = base.targets
     num_classes = len(base.classes)
     class_names = base.classes
+
+    # Balanced sampler: weight each sample inversely by its class frequency
+    class_counts = np.bincount(targets, minlength=num_classes)
+    class_weights = 1.0 / class_counts
+    sample_weights = torch.from_numpy(class_weights[targets]).double()
+    sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights))
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        sampler=sampler,
         num_workers=num_workers,
         pin_memory=pin_memory,
         drop_last=True,
